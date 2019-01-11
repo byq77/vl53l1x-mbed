@@ -1349,7 +1349,7 @@ class VL53L1X
     // aren't multiple sensors being read at the same time (e.g. on separate
     // I2C buses)
     ResultBuffer results;
-
+    int _frequency;
     uint8_t address;
 
     uint16_t io_timeout;

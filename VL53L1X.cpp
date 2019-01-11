@@ -9,6 +9,7 @@
 
 VL53L1X::VL53L1X(PinName sda_pin, PinName scl_pin, int frequency)
   : i2c(sda_pin,scl_pin)
+  , _frequency(frequency)
   , address(AddressDefault<<1)
   , io_timeout(0) // no timeout
   , did_timeout(false)
@@ -16,9 +17,7 @@ VL53L1X::VL53L1X(PinName sda_pin, PinName scl_pin, int frequency)
   , saved_vhv_init(0)
   , saved_vhv_timeout(0)
   , distance_mode(Unknown)
-{
-    i2c.frequency(400000);
-}
+{}
 
 // Public Methods //////////////////////////////////////////////////////////////
 
@@ -36,7 +35,7 @@ bool VL53L1X::init(bool io_2v8)
 {
 
   t.start();
-
+  i2c.frequency(_frequency);
   // check model ID and module type registers (values specified in datasheet)
   if (readReg16Bit(IDENTIFICATION__MODEL_ID) != 0xEACC) { return false; }
 
