@@ -1,4 +1,5 @@
-#pragma once
+#ifndef __VL53L1X_H__
+#define __VL53L1X_H__
 
 #include <mbed.h> 
 
@@ -1385,3 +1386,5 @@ class VL53L1X
     // Convert count rate from fixed point 9.7 format to float
     float countRateFixedToFloat(uint16_t count_rate_fixed) { return (float)count_rate_fixed / (1 << 7); }
 };
+
+#endif /* __VL53L1X_H__ */
