@@ -2,7 +2,7 @@
 #define __VL53L1X_H__
 
 #include <mbed.h> 
-
+#define MAX_BUFFER_SIZE 6
 class VL53L1X
 {
   public:
@@ -1365,6 +1365,7 @@ class VL53L1X
     uint8_t saved_vhv_timeout;
 
     DistanceMode distance_mode;
+    uint8_t buffer[MAX_BUFFER_SIZE];
 
     // Record the current time to check an upcoming timeout against
     void startTimeout() { timeout_start_ms = t.read_ms(); }

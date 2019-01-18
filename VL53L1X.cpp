@@ -160,7 +160,6 @@ bool VL53L1X::init(bool io_2v8)
 // Write an 8-bit register
 void VL53L1X::writeReg(uint16_t reg, uint8_t value)
 {
-  uint8_t buffer[3];
   buffer[0] = (reg >> 8) & 0xFF; // reg high byte
   buffer[1] = reg & 0xFF;        // reg low byte
   buffer[2] = value;
@@ -170,7 +169,6 @@ void VL53L1X::writeReg(uint16_t reg, uint8_t value)
 // Write a 16-bit register
 void VL53L1X::writeReg16Bit(uint16_t reg, uint16_t value)
 {
-  uint8_t buffer[4];
   buffer[0] = (reg >> 8) & 0xFF;   // reg high byte
   buffer[1] = reg & 0xFF;          // reg low byte
   buffer[2] = (value >> 8) & 0xFF; // value high byte
@@ -181,7 +179,6 @@ void VL53L1X::writeReg16Bit(uint16_t reg, uint16_t value)
 // Write a 32-bit register
 void VL53L1X::writeReg32Bit(uint16_t reg, uint32_t value)
 {
-  uint8_t buffer[6];
   buffer[0] = (reg >> 8) & 0xFF;    // reg high byte
   buffer[1] = reg & 0xFF;           // reg low byte
   buffer[2] = (value >> 24) & 0xFF; // value MSB
@@ -198,37 +195,29 @@ uint8_t VL53L1X::readReg(regAddr reg)
   uint8_t value;
   last_status = i2c.write(address, REG, 2, 0);
   i2c.read(address, (char*)&value,1,0);
-
   return value;
 }
 
 // Read a 16-bit register
 uint16_t VL53L1X::readReg16Bit(uint16_t reg)
 {
-  uint8_t buffer[2];
   const char REG[] = {(reg >> 8) & 0xFF, reg & 0xFF};
-  
   last_status = i2c.write(address, REG, 2, 0);
   i2c.read(address, (char*)buffer,2,0);
-
   return (uint16_t)(buffer[0] << 8) | buffer[1];
 }
 
 // Read a 32-bit register
 uint32_t VL53L1X::readReg32Bit(uint16_t reg)
 {
-  uint8_t buffer[4];
   uint32_t value;
   const char REG[] = {(reg >> 8) & 0xFF, reg & 0xFF};
-
   last_status = i2c.write(address, REG, 2, 0);
   i2c.read(address, (char*)buffer,4,0);
-  
   value  = (uint32_t)buffer[0] << 24; // value highest byte
   value |= (uint32_t)buffer[1] << 16;
   value |= (uint16_t)buffer[2] <<  8;
   value |=           buffer[3];       // value lowest byte
-
   return value;
 }
 
