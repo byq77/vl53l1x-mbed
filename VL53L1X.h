@@ -1270,10 +1270,11 @@ class VL53L1X
 
     uint8_t last_status; // status of last I2C transmission
 
-    VL53L1X(PinName sda_pin, PinName scl_pin, int frequency=400000);
+    VL53L1X(PinName sda_pin, PinName scl_pin, int frequency=100000);
 
     void setAddress(uint8_t new_addr);
-    uint8_t getAddress() { return address; }
+    void setLocalAddress(uint8_t new_addr);
+    uint8_t getAddress() { return address>>1; }
 
     bool init(bool io_2v8 = true);
 

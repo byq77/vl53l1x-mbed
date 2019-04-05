@@ -23,9 +23,12 @@ A [VL53L1X carrier](https://www.pololu.com/product/3415) can be purchased from P
 
 VL53L1X sensor(I2C_SDA,I2C_SCL);
 Serial pc(USBTX, USBRX, 115200);
+DigitalInOut xshout(D13,PIN_OUTPUT,OpenDrainNoPull,0);
 
 int main() {
-
+  
+  xshout = 1;
+  wait(1.0);
   sensor.setTimeout(500);
   if (!sensor.init())
   {
@@ -69,9 +72,12 @@ int main() {
 
 VL53L1X sensor(I2C_SDA,I2C_SCL);
 Serial pc(USBTX, USBRX, 115200);
+DigitalInOut xshout(D13,PIN_OUTPUT,OpenDrainNoPull,0);
 
 int main() {
 
+  xshout = 1;
+  wait(1.0);
   sensor.setTimeout(500);
   if (!sensor.init())
   {

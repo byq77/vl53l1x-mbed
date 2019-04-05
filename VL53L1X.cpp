@@ -23,9 +23,16 @@ VL53L1X::VL53L1X(PinName sda_pin, PinName scl_pin, int frequency)
 
 void VL53L1X::setAddress(uint8_t new_addr)
 {
+  // new_addr = new_addr << 1;
   writeReg(I2C_SLAVE__DEVICE_ADDRESS, new_addr & 0x7F);
   address = new_addr<<1;
 }
+
+void VL53L1X::setLocalAddress(uint8_t new_addr)
+{
+  address = new_addr<<1;
+}
+
 
 // Initialize sensor using settings taken mostly from VL53L1_DataInit() and
 // VL53L1_StaticInit().
@@ -33,9 +40,9 @@ void VL53L1X::setAddress(uint8_t new_addr)
 // mode.
 bool VL53L1X::init(bool io_2v8)
 {
-
+  if(_frequency > 100000)
+    i2c.frequency(_frequency);
   t.start();
-  i2c.frequency(_frequency);
   // check model ID and module type registers (values specified in datasheet)
   if (readReg16Bit(IDENTIFICATION__MODEL_ID) != 0xEACC) { return false; }
 
