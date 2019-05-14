@@ -1270,10 +1270,11 @@ class VL53L1X
 
     uint8_t last_status; // status of last I2C transmission
 
-    VL53L1X(PinName sda_pin, PinName scl_pin, int frequency=100000);
+    VL53L1X(I2C * i2c_instance, Timer * timer_instance);
 
     void setAddress(uint8_t new_addr);
     void setLocalAddress(uint8_t new_addr);
+    void setDefaultAddress();
     uint8_t getAddress() { return address>>1; }
 
     bool init(bool io_2v8 = true);
@@ -1344,14 +1345,13 @@ class VL53L1X
       uint16_t peak_signal_count_rate_crosstalk_corrected_mcps_sd0;
     };
 
-    I2C i2c;
-    Timer t;
+    I2C * i2c;
+    Timer * ms_timer;
 
     // making this static would save RAM for multiple instances as long as there
     // aren't multiple sensors being read at the same time (e.g. on separate
     // I2C buses)
     ResultBuffer results;
-    int _frequency;
     uint8_t address;
 
     uint16_t io_timeout;
@@ -1369,10 +1369,10 @@ class VL53L1X
     uint8_t buffer[MAX_BUFFER_SIZE];
 
     // Record the current time to check an upcoming timeout against
-    void startTimeout() { timeout_start_ms = t.read_ms(); }
+    void startTimeout() { timeout_start_ms = ms_timer->read_ms(); }
 
     // Check if timeout is enabled (set to nonzero value) and has expired
-    bool checkTimeoutExpired() {return (io_timeout > 0) && ((uint16_t)(t.read_ms() - timeout_start_ms) > io_timeout); }
+    bool checkTimeoutExpired() {return (io_timeout > 0) && ((uint16_t)(ms_timer->read_ms() - timeout_start_ms) > io_timeout); }
 
     void setupManualCalibration();
     void readResults();

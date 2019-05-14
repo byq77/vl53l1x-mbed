@@ -7,9 +7,9 @@
 
 // Constructors ////////////////////////////////////////////////////////////////
 
-VL53L1X::VL53L1X(PinName sda_pin, PinName scl_pin, int frequency)
-  : i2c(sda_pin,scl_pin)
-  , _frequency(frequency)
+VL53L1X::VL53L1X(I2C * i2c_instance, Timer * timer_instance)
+  : i2c(i2c_instance)
+  , ms_timer(timer_instance)
   , address(AddressDefault<<1)
   , io_timeout(0) // no timeout
   , did_timeout(false)
@@ -33,6 +33,10 @@ void VL53L1X::setLocalAddress(uint8_t new_addr)
   address = new_addr<<1;
 }
 
+void VL53L1X::setDefaultAddress()
+{
+  address = AddressDefault<<1;
+}
 
 // Initialize sensor using settings taken mostly from VL53L1_DataInit() and
 // VL53L1_StaticInit().
@@ -40,9 +44,6 @@ void VL53L1X::setLocalAddress(uint8_t new_addr)
 // mode.
 bool VL53L1X::init(bool io_2v8)
 {
-  if(_frequency > 100000)
-    i2c.frequency(_frequency);
-  t.start();
   // check model ID and module type registers (values specified in datasheet)
   if (readReg16Bit(IDENTIFICATION__MODEL_ID) != 0xEACC) { return false; }
 
@@ -170,7 +171,7 @@ void VL53L1X::writeReg(uint16_t reg, uint8_t value)
   buffer[0] = (reg >> 8) & 0xFF; // reg high byte
   buffer[1] = reg & 0xFF;        // reg low byte
   buffer[2] = value;
-  last_status = i2c.write(address, (const char *)buffer, 3, 0);
+  last_status = i2c->write(address, (const char *)buffer, 3, 0);
 }
 
 // Write a 16-bit register
@@ -180,7 +181,7 @@ void VL53L1X::writeReg16Bit(uint16_t reg, uint16_t value)
   buffer[1] = reg & 0xFF;          // reg low byte
   buffer[2] = (value >> 8) & 0xFF; // value high byte
   buffer[3] = value & 0xFF;        // value low byte
-  last_status = i2c.write(address, (const char *)buffer, 4, 0);
+  last_status = i2c->write(address, (const char *)buffer, 4, 0);
 }
 
 // Write a 32-bit register
@@ -192,7 +193,7 @@ void VL53L1X::writeReg32Bit(uint16_t reg, uint32_t value)
   buffer[3] = (value >> 16) & 0xFF; //
   buffer[4] = (value >> 8) & 0xFF;  //
   buffer[5] = value & 0xFF;         // value LSB
-  last_status = i2c.write(address, (const char *)buffer, 6, 0);
+  last_status = i2c->write(address, (const char *)buffer, 6, 0);
 }
 
 // Read an 8-bit register
@@ -200,8 +201,8 @@ uint8_t VL53L1X::readReg(regAddr reg)
 {
   const char REG[] = {(reg >> 8) & 0xFF, reg & 0xFF};
   uint8_t value;
-  last_status = i2c.write(address, REG, 2, 0);
-  i2c.read(address, (char*)&value,1,0);
+  last_status = i2c->write(address, REG, 2, 0);
+  i2c->read(address, (char*)&value,1,0);
   return value;
 }
 
@@ -209,8 +210,8 @@ uint8_t VL53L1X::readReg(regAddr reg)
 uint16_t VL53L1X::readReg16Bit(uint16_t reg)
 {
   const char REG[] = {(reg >> 8) & 0xFF, reg & 0xFF};
-  last_status = i2c.write(address, REG, 2, 0);
-  i2c.read(address, (char*)buffer,2,0);
+  last_status = i2c->write(address, REG, 2, 0);
+  i2c->read(address, (char*)buffer,2,0);
   return (uint16_t)(buffer[0] << 8) | buffer[1];
 }
 
@@ -219,8 +220,8 @@ uint32_t VL53L1X::readReg32Bit(uint16_t reg)
 {
   uint32_t value;
   const char REG[] = {(reg >> 8) & 0xFF, reg & 0xFF};
-  last_status = i2c.write(address, REG, 2, 0);
-  i2c.read(address, (char*)buffer,4,0);
+  last_status = i2c->write(address, REG, 2, 0);
+  i2c->read(address, (char*)buffer,4,0);
   value  = (uint32_t)buffer[0] << 24; // value highest byte
   value |= (uint32_t)buffer[1] << 16;
   value |= (uint16_t)buffer[2] <<  8;
@@ -545,8 +546,8 @@ void VL53L1X::readResults()
   uint8_t buffer[17];
   const char REG[] = {(RESULT__RANGE_STATUS >> 8) & 0xFF, RESULT__RANGE_STATUS & 0xFF};
   
-  last_status = i2c.write(address, REG, 2, 0);
-  i2c.read(address, (char*)buffer,17,0);
+  last_status = i2c->write(address, REG, 2, 0);
+  i2c->read(address, (char*)buffer,17,0);
 
   results.range_status = buffer[0];
 
