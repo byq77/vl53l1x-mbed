@@ -55,8 +55,11 @@ bool VL53L1X::init(bool io_2v8)
 
   // give it some time to boot; otherwise the sensor NACKs during the readReg()
   // call below and the Arduino 101 doesn't seem to handle that well
+#if VL53L1X_MBED_NON_BLOCKING > 0
+  ThisThread::sleep_for(10);
+#else
   wait_ms(10);
-
+#endif /* VL53L1X_MBED_NON_BLOCKING */
   // VL53L1_poll_for_boot_completion() begin
 
   startTimeout();
@@ -165,35 +168,134 @@ bool VL53L1X::init(bool io_2v8)
   return true;
 }
 
-// Write an 8-bit register
+#if VL53L1X_MBED_NON_BLOCKING > 0
+
+void VL53L1X::i2c_event_cb(int event)
+{
+   /*
+    *#define I2C_EVENT_ERROR               (1 << 1)
+    *#define I2C_EVENT_ERROR_NO_SLAVE      (1 << 2)
+    *#define I2C_EVENT_TRANSFER_COMPLETE   (1 << 3)
+    *#define I2C_EVENT_TRANSFER_EARLY_NACK (1 << 4)
+    *#define I2C_EVENT_ALL                 (I2C_EVENT_ERROR |  I2C_EVENT_TRANSFER_COMPLETE | I2C_EVENT_ERROR_NO_SLAVE | I2C_EVENT_TRANSFER_EARLY_NACK)
+    */
+    last_status = (uint8_t)event;
+}
+
+void VL53L1X::transferInternal(int tx_len, int rx_len)
+{
+  last_status = 0xff; // set
+  if(i2c->transfer(address, (const char*) snd_buffer,tx_len,(char*)rec_buffer,rx_len,Callback<void(int)>(this,&VL53L1X::i2c_event_cb))==-1)
+  {
+      // busy
+      last_status = 1;
+      return;
+  }
+  while(last_status == 0xff)
+  {
+      ThisThread::yield();
+  }
+  // decode the event
+  last_status = I2C_EVENT_TRANSFER_COMPLETE & last_status ? 0 : 1;
+}
+
 void VL53L1X::writeReg(uint16_t reg, uint8_t value)
 {
-  buffer[0] = (reg >> 8) & 0xFF; // reg high byte
-  buffer[1] = reg & 0xFF;        // reg low byte
-  buffer[2] = value;
-  last_status = i2c->write(address, (const char *)buffer, 3, 0);
+  snd_buffer[0] = (reg >> 8) & 0xFF; // reg high byte
+  snd_buffer[1] = reg & 0xFF;        // reg low byte
+  snd_buffer[2] = value;
+  transferInternal(3,0);
 }
 
 // Write a 16-bit register
 void VL53L1X::writeReg16Bit(uint16_t reg, uint16_t value)
 {
-  buffer[0] = (reg >> 8) & 0xFF;   // reg high byte
-  buffer[1] = reg & 0xFF;          // reg low byte
-  buffer[2] = (value >> 8) & 0xFF; // value high byte
-  buffer[3] = value & 0xFF;        // value low byte
-  last_status = i2c->write(address, (const char *)buffer, 4, 0);
+  snd_buffer[0] = (reg >> 8) & 0xFF;   // reg high byte
+  snd_buffer[1] = reg & 0xFF;          // reg low byte
+  snd_buffer[2] = (value >> 8) & 0xFF; // value high byte
+  snd_buffer[3] = value & 0xFF;        // value low byte
+  transferInternal(4,0);
 }
 
 // Write a 32-bit register
 void VL53L1X::writeReg32Bit(uint16_t reg, uint32_t value)
 {
-  buffer[0] = (reg >> 8) & 0xFF;    // reg high byte
-  buffer[1] = reg & 0xFF;           // reg low byte
-  buffer[2] = (value >> 24) & 0xFF; // value MSB
-  buffer[3] = (value >> 16) & 0xFF; //
-  buffer[4] = (value >> 8) & 0xFF;  //
-  buffer[5] = value & 0xFF;         // value LSB
-  last_status = i2c->write(address, (const char *)buffer, 6, 0);
+  snd_buffer[0] = (reg >> 8) & 0xFF;    // reg high byte
+  snd_buffer[1] = reg & 0xFF;           // reg low byte
+  snd_buffer[2] = (value >> 24) & 0xFF; // value MSB
+  snd_buffer[3] = (value >> 16) & 0xFF; //
+  snd_buffer[4] = (value >> 8) & 0xFF;  //
+  snd_buffer[5] = value & 0xFF;         // value LSB
+  transferInternal(6,0);
+}
+
+// Read an 8-bit register
+uint8_t VL53L1X::readReg(regAddr reg)
+{
+  snd_buffer[0] = (reg >> 8) & 0xFF;    // reg high byte
+  snd_buffer[1] = reg & 0xFF;           // reg low byte
+  transferInternal(2,1);
+  return last_status ? 0 : rec_buffer[0];
+}
+
+// Read a 16-bit register
+uint16_t VL53L1X::readReg16Bit(uint16_t reg)
+{
+  uint16_t value = 0;
+  snd_buffer[0] = (reg >> 8) & 0xFF;    // reg high byte
+  snd_buffer[1] = reg & 0xFF;           // reg low byte
+  transferInternal(2,2);
+  if(last_status==0) value = (uint16_t)(rec_buffer[0] << 8) | rec_buffer[1]; 
+  return value;
+}
+
+// Read a 32-bit register
+uint32_t VL53L1X::readReg32Bit(uint16_t reg)
+{
+  uint32_t value = 0;
+  snd_buffer[0] = (reg >> 8) & 0xFF;    // reg high byte
+  snd_buffer[1] = reg & 0xFF;           // reg low byte
+  transferInternal(2,4);
+  if(last_status==0){
+  value  = (uint32_t)rec_buffer[0] << 24; // value highest byte
+  value |= (uint32_t)rec_buffer[1] << 16;
+  value |= (uint16_t)rec_buffer[2] <<  8;
+  value |=           rec_buffer[3];       // value lowest byte
+  }
+  return value;
+}
+
+#else
+
+// Write an 8-bit register
+void VL53L1X::writeReg(uint16_t reg, uint8_t value)
+{
+  snd_buffer[0] = (reg >> 8) & 0xFF; // reg high byte
+  snd_buffer[1] = reg & 0xFF;        // reg low byte
+  snd_buffer[2] = value;
+  last_status = i2c->write(address, (const char *)snd_buffer, 3, 0);
+}
+
+// Write a 16-bit register
+void VL53L1X::writeReg16Bit(uint16_t reg, uint16_t value)
+{
+  snd_buffer[0] = (reg >> 8) & 0xFF;   // reg high byte
+  snd_buffer[1] = reg & 0xFF;          // reg low byte
+  snd_buffer[2] = (value >> 8) & 0xFF; // value high byte
+  snd_buffer[3] = value & 0xFF;        // value low byte
+  last_status = i2c->write(address, (const char *)snd_buffer, 4, 0);
+}
+
+// Write a 32-bit register
+void VL53L1X::writeReg32Bit(uint16_t reg, uint32_t value)
+{
+  snd_buffer[0] = (reg >> 8) & 0xFF;    // reg high byte
+  snd_buffer[1] = reg & 0xFF;           // reg low byte
+  snd_buffer[2] = (value >> 24) & 0xFF; // value MSB
+  snd_buffer[3] = (value >> 16) & 0xFF; //
+  snd_buffer[4] = (value >> 8) & 0xFF;  //
+  snd_buffer[5] = value & 0xFF;         // value LSB
+  last_status = i2c->write(address, (const char *)snd_buffer, 6, 0);
 }
 
 // Read an 8-bit register
@@ -211,8 +313,8 @@ uint16_t VL53L1X::readReg16Bit(uint16_t reg)
 {
   const char REG[] = {(reg >> 8) & 0xFF, reg & 0xFF};
   last_status = i2c->write(address, REG, 2, 0);
-  i2c->read(address, (char*)buffer,2,0);
-  return (uint16_t)(buffer[0] << 8) | buffer[1];
+  i2c->read(address, (char*)rec_buffer,2,0);
+  return (uint16_t)(rec_buffer[0] << 8) | rec_buffer[1];
 }
 
 // Read a 32-bit register
@@ -221,13 +323,15 @@ uint32_t VL53L1X::readReg32Bit(uint16_t reg)
   uint32_t value;
   const char REG[] = {(reg >> 8) & 0xFF, reg & 0xFF};
   last_status = i2c->write(address, REG, 2, 0);
-  i2c->read(address, (char*)buffer,4,0);
-  value  = (uint32_t)buffer[0] << 24; // value highest byte
-  value |= (uint32_t)buffer[1] << 16;
-  value |= (uint16_t)buffer[2] <<  8;
-  value |=           buffer[3];       // value lowest byte
+  i2c->read(address, (char*)rec_buffer,4,0);
+  value  = (uint32_t)rec_buffer[0] << 24; // value highest byte
+  value |= (uint32_t)rec_buffer[1] << 16;
+  value |= (uint16_t)rec_buffer[2] <<  8;
+  value |=           rec_buffer[3];       // value lowest byte
   return value;
 }
+
+#endif /* VL53L1X_MBED_NON_BLOCKING */
 
 // set distance mode to Short, Medium, or Long
 // based on VL53L1_SetDistanceMode()
@@ -438,6 +542,9 @@ uint16_t VL53L1X::read(bool blocking)
         ranging_data.ambient_count_rate_MCPS = 0;
         return ranging_data.range_mm;
       }
+#if VL53L1X_MBED_NON_BLOCKING > 0
+    ThisThread::yield();
+#endif /* VL53L1X_MBED_NON_BLOCKING */
     }
   }
 
@@ -543,35 +650,38 @@ void VL53L1X::setupManualCalibration()
 // read measurement results into buffer
 void VL53L1X::readResults()
 {
-  uint8_t buffer[17];
-  const char REG[] = {(RESULT__RANGE_STATUS >> 8) & 0xFF, RESULT__RANGE_STATUS & 0xFF};
-  
-  last_status = i2c->write(address, REG, 2, 0);
-  i2c->read(address, (char*)buffer,17,0);
+  snd_buffer[0] = (RESULT__RANGE_STATUS >> 8) & 0xFF;
+  snd_buffer[1]= RESULT__RANGE_STATUS & 0xFF;
+  #if VL53L1X_MBED_NON_BLOCKING > 0
+  transferInternal(2,17);
+  #else
+  last_status = i2c->write(address, (const char *)snd_buffer, 2, 0);
+  last_status = i2c->read(address, (char*)rec_buffer,17,0);
+  #endif
 
-  results.range_status = buffer[0];
+  results.range_status = rec_buffer[0];
 
   // report_status: not used
 
-  results.stream_count = buffer[2];
+  results.stream_count = rec_buffer[2];
 
-  results.dss_actual_effective_spads_sd0  = (uint16_t)buffer[3] << 8; // high byte
-  results.dss_actual_effective_spads_sd0 |=           buffer[4];      // low byte
+  results.dss_actual_effective_spads_sd0  = (uint16_t)rec_buffer[3] << 8; // high byte
+  results.dss_actual_effective_spads_sd0 |=           rec_buffer[4];      // low byte
 
   // peak_signal_count_rate_mcps_sd0: not used
   
-  results.ambient_count_rate_mcps_sd0  = (uint16_t)buffer[7] << 8; // high byte
-  results.ambient_count_rate_mcps_sd0 |=           buffer[8];      // low byte
+  results.ambient_count_rate_mcps_sd0  = (uint16_t)rec_buffer[7] << 8; // high byte
+  results.ambient_count_rate_mcps_sd0 |=           rec_buffer[8];      // low byte
 
   // sigma_sd0: not used
   
   // phase_sd0: not used
   
-  results.final_crosstalk_corrected_range_mm_sd0  = (uint16_t)buffer[13] << 8; // high byte
-  results.final_crosstalk_corrected_range_mm_sd0 |=           buffer[14];      // low byte
+  results.final_crosstalk_corrected_range_mm_sd0  = (uint16_t)rec_buffer[13] << 8; // high byte
+  results.final_crosstalk_corrected_range_mm_sd0 |=           rec_buffer[14];      // low byte
 
-  results.peak_signal_count_rate_crosstalk_corrected_mcps_sd0  = (uint16_t)buffer[15] << 8; // high byte
-  results.peak_signal_count_rate_crosstalk_corrected_mcps_sd0 |=           buffer[16];      // low byte
+  results.peak_signal_count_rate_crosstalk_corrected_mcps_sd0  = (uint16_t)rec_buffer[15] << 8; // high byte
+  results.peak_signal_count_rate_crosstalk_corrected_mcps_sd0 |=           rec_buffer[16];      // low byte
 }
 
 // perform Dynamic SPAD Selection calculation/update

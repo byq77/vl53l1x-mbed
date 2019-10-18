@@ -2,7 +2,8 @@
 #define __VL53L1X_H__
 
 #include <mbed.h> 
-#define MAX_BUFFER_SIZE 6
+#define MAX_SND_BUFFER_SIZE 6
+#define MAX_REC_BUFFER_SIZE 17
 class VL53L1X
 {
   public:
@@ -1308,6 +1309,10 @@ class VL53L1X
     bool timeoutOccurred();
 
   private:
+#if VL53L1X_MBED_NON_BLOCKING > 0
+    void i2c_event_cb(int event);
+    void transferInternal(int tx_len, int rx_len);
+#endif /* VL53L1X_MBED_NON_BLOCKING */
 
     // The Arduino two-wire interface uses a 7-bit number for the address,
     // and sets the last bit correctly based on reads and writes
@@ -1366,7 +1371,8 @@ class VL53L1X
     uint8_t saved_vhv_timeout;
 
     DistanceMode distance_mode;
-    uint8_t buffer[MAX_BUFFER_SIZE];
+    uint8_t snd_buffer[MAX_SND_BUFFER_SIZE];
+    uint8_t rec_buffer[MAX_REC_BUFFER_SIZE];
 
     // Record the current time to check an upcoming timeout against
     void startTimeout() { timeout_start_ms = ms_timer->read_ms(); }

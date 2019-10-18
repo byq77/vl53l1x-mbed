@@ -1,0 +1,13 @@
+{
+    "name":"vl53l1x-mbed",
+    "macros": [],
+    "config":
+    {
+        "non-blocking":
+        {
+            "help":"Non blocking I2C implementation (RTOS).",
+            "macro_name": "VL53L1X_MBED_NON_BLOCKING",
+            "value": 1
+        }
+    }
+}
