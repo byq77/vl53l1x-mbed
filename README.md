@@ -21,19 +21,25 @@ A [VL53L1X carrier](https://www.pololu.com/product/3415) can be purchased from P
 #include <mbed.h>
 #include <VL53L1X.h>
 
-VL53L1X sensor(I2C_SDA,I2C_SCL);
+I2C i2c(I2C_SDA,I2C_SCL);
+Timer timer;
+
+VL53L1X sensor(&i2c, &timer);
+
 Serial pc(USBTX, USBRX, 115200);
 DigitalInOut xshout(D13,PIN_OUTPUT,OpenDrainNoPull,0);
 
 int main() {
-  
   xshout = 1;
   wait(1.0);
   sensor.setTimeout(500);
+  pc.printf("Program started!\r\n");
   if (!sensor.init())
   {
     pc.printf("Failed to detect and initialize sensor!");
-    while (1);
+    while (1){
+        wait(1.0);
+    }
   }
   // Use long distance mode and allow up to 50000 us (50 ms) for a measurement.
   // You can change these settings to adjust the performance of the sensor, but
@@ -70,7 +76,10 @@ int main() {
 #include <mbed.h>
 #include <VL53L1X.h>
 
-VL53L1X sensor(I2C_SDA,I2C_SCL);
+I2C i2c(I2C_SDA,I2C_SCL);
+Timer timer;
+
+VL53L1X sensor(&i2c, &timer);
 Serial pc(USBTX, USBRX, 115200);
 DigitalInOut xshout(D13,PIN_OUTPUT,OpenDrainNoPull,0);
 

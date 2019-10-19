@@ -52,6 +52,7 @@ void VL53L1X::setDefaultAddress()
 // mode.
 bool VL53L1X::init(bool io_2v8)
 {
+  ms_timer->start();
   // check model ID and module type registers (values specified in datasheet)
   if (readReg16Bit(IDENTIFICATION__MODEL_ID) != 0xEACC) { return false; }
 
