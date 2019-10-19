@@ -1,6 +1,9 @@
 {
     "name":"vl53l1x-mbed",
-    "macros": [],
+    "macros": [
+        "VL53L1X_DEBUG_LOGS=0",
+        "TIMEOUT_NON_BLOCKING_BYTE=50000"
+    ],
     "config":
     {
         "non-blocking":

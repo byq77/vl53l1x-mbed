@@ -5,6 +5,14 @@
 
 #include <VL53L1X.h>
 
+#if defined(VL53L1X_DEBUG_LOGS) && VL53L1X_DEBUG_LOGS > 0 
+#define debug_print(fmt, ...) \
+            do { fprintf(stderr, fmt, ##__VA_ARGS__); } while (0)
+#else
+#define debug_pring(fmt, ...) \
+            do {}while(0)
+#endif
+
 // Constructors ////////////////////////////////////////////////////////////////
 
 VL53L1X::VL53L1X(I2C * i2c_instance, Timer * timer_instance)
@@ -184,6 +192,7 @@ void VL53L1X::i2c_event_cb(int event)
 
 void VL53L1X::transferInternal(int tx_len, int rx_len)
 {
+  int guard = TIMEOUT_NON_BLOCKING_BYTE * (tx_len + rx_len + 1); //TODO: find better method for timeout
   last_status = 0xff; // set
   if(i2c->transfer(address, (const char*) snd_buffer,tx_len,(char*)rec_buffer,rx_len,Callback<void(int)>(this,&VL53L1X::i2c_event_cb))==-1)
   {
@@ -191,9 +200,16 @@ void VL53L1X::transferInternal(int tx_len, int rx_len)
       last_status = 1;
       return;
   }
-  while(last_status == 0xff)
+  while(last_status == 0xff && guard--)
   {
       ThisThread::yield();
+      if(guard==0)
+      {
+          debug_print("transferInternal: TIMEOUT!\r\n");
+          i2c->abort_transfer();
+          last_status=1;
+          return;
+      }
   }
   // decode the event
   last_status = I2C_EVENT_TRANSFER_COMPLETE & last_status ? 0 : 1;
