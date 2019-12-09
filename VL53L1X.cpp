@@ -213,7 +213,10 @@ void VL53L1X::transferInternal(int tx_len, int rx_len)
       }
   }
   // decode the event
-  last_status = I2C_EVENT_TRANSFER_COMPLETE & last_status ? 0 : 1;
+  if(last_status == I2C_EVENT_TRANSFER_COMPLETE)
+        last_status = 0;
+  else
+        last_status = 1;
 }
 
 void VL53L1X::writeReg(uint16_t reg, uint8_t value)
