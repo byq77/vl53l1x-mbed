@@ -193,7 +193,7 @@ void VL53L1X::i2c_event_cb(int event)
 
 void VL53L1X::transferInternal(int tx_len, int rx_len)
 {
-  int guard = TIMEOUT_NON_BLOCKING_BYTE * (tx_len + rx_len + 1); //TODO: find better method for timeout
+  int guard = TIMEOUT_NON_BLOCKING_BYTE * (tx_len + rx_len + 3); //TODO: find better method for timeout
   last_status = 0xff; // set
   if(i2c->transfer(address, (const char*) snd_buffer,tx_len,(char*)rec_buffer,rx_len,Callback<void(int)>(this,&VL53L1X::i2c_event_cb))==-1)
   {
@@ -213,7 +213,10 @@ void VL53L1X::transferInternal(int tx_len, int rx_len)
       }
   }
   // decode the event
-  last_status = I2C_EVENT_TRANSFER_COMPLETE & last_status ? 0 : 1;
+  if(last_status == I2C_EVENT_TRANSFER_COMPLETE)
+        last_status = 0;
+  else
+        last_status = 1;
 }
 
 void VL53L1X::writeReg(uint16_t reg, uint8_t value)
