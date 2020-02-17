@@ -13,8 +13,23 @@
             do {}while(0)
 #endif
 
-// Constructors ////////////////////////////////////////////////////////////////
+#define I2C_EVENT_TIMEOUT (1 << 5)
+#define I2C_EVENT_BUSSY 0xff
+static Timeout timeout;
 
+// Constructors ////////////////////////////////////////////////////////////////
+#if VL53L1X_MBED_NON_BLOCKING > 0
+VL53L1X::VL53L1X(I2C * i2c_instance)
+  : i2c(i2c_instance)
+  , address(AddressDefault<<1)
+  , io_timeout(0) // no timeout
+  , did_timeout(false)
+  , calibrated(false)
+  , saved_vhv_init(0)
+  , saved_vhv_timeout(0)
+  , distance_mode(Unknown)
+{}
+#else
 VL53L1X::VL53L1X(I2C * i2c_instance, Timer * timer_instance)
   : i2c(i2c_instance)
   , ms_timer(timer_instance)
@@ -26,7 +41,7 @@ VL53L1X::VL53L1X(I2C * i2c_instance, Timer * timer_instance)
   , saved_vhv_timeout(0)
   , distance_mode(Unknown)
 {}
-
+#endif
 // Public Methods //////////////////////////////////////////////////////////////
 
 void VL53L1X::setAddress(uint8_t new_addr)
@@ -52,7 +67,9 @@ void VL53L1X::setDefaultAddress()
 // mode.
 bool VL53L1X::init(bool io_2v8)
 {
+#if VL53L1X_MBED_NON_BLOCKING == 0
   ms_timer->start();
+#endif
   // check model ID and module type registers (values specified in datasheet)
   if (readReg16Bit(IDENTIFICATION__MODEL_ID) != 0xEACC) { return false; }
 
@@ -181,42 +198,47 @@ bool VL53L1X::init(bool io_2v8)
 
 void VL53L1X::i2c_event_cb(int event)
 {
-   /*
+    /*
     *#define I2C_EVENT_ERROR               (1 << 1)
     *#define I2C_EVENT_ERROR_NO_SLAVE      (1 << 2)
     *#define I2C_EVENT_TRANSFER_COMPLETE   (1 << 3)
     *#define I2C_EVENT_TRANSFER_EARLY_NACK (1 << 4)
+    *#define I2C_EVENT_TIMEOUT             (1 << 5)
     *#define I2C_EVENT_ALL                 (I2C_EVENT_ERROR |  I2C_EVENT_TRANSFER_COMPLETE | I2C_EVENT_ERROR_NO_SLAVE | I2C_EVENT_TRANSFER_EARLY_NACK)
     */
-    last_status = (uint8_t)event;
+    i2c_event = event;
+}
+
+void VL53L1X::i2c_timeout_cb()
+{
+    if(i2c_event==I2C_EVENT_BUSSY) i2c_event = I2C_EVENT_TIMEOUT;
 }
 
 void VL53L1X::transferInternal(int tx_len, int rx_len)
 {
-  int guard = TIMEOUT_NON_BLOCKING_BYTE * (tx_len + rx_len + 3); //TODO: find better method for timeout
-  last_status = 0xff; // set
-  if(i2c->transfer(address, (const char*) snd_buffer,tx_len,(char*)rec_buffer,rx_len,Callback<void(int)>(this,&VL53L1X::i2c_event_cb))==-1)
-  {
-      // busy
-      last_status = 1;
-      return;
-  }
-  while(last_status == 0xff && guard--)
-  {
-      ThisThread::yield();
-      if(guard==0)
-      {
-          debug_print("transferInternal: TIMEOUT!\r\n");
-          i2c->abort_transfer();
-          last_status=1;
-          return;
-      }
-  }
-  // decode the event
-  if(last_status == I2C_EVENT_TRANSFER_COMPLETE)
-        last_status = 0;
-  else
+    i2c_event = I2C_EVENT_BUSSY; // set
+    if (i2c->transfer(address, (const char *)snd_buffer, tx_len, (char *)rec_buffer, rx_len, Callback<void(int)>(this, &VL53L1X::i2c_event_cb)) == -1)
+    {
+        // busy
         last_status = 1;
+        return;
+    }
+
+    timeout.attach_us(callback(this, &VL53L1X::i2c_timeout_cb), TIMEOUT_NON_BLOCKING_BYTE * (tx_len + rx_len + 3));
+
+    while (i2c_event == I2C_EVENT_BUSSY){ThisThread::yield();}
+
+    last_status = 1;
+
+    // decode the event
+    if (i2c_event == I2C_EVENT_TRANSFER_COMPLETE)
+    {
+        timeout.detach();
+        last_status = 0;
+    }
+    else if (i2c_event == I2C_EVENT_TIMEOUT)
+        i2c->abort_transfer();
+
 }
 
 void VL53L1X::writeReg(uint16_t reg, uint8_t value)

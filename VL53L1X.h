@@ -1270,8 +1270,13 @@ class VL53L1X
     RangingData ranging_data;
 
     uint8_t last_status; // status of last I2C transmission
+    volatile int i2c_event;
 
+#if VL53L1X_MBED_NON_BLOCKING > 0
+    VL53L1X(I2C * i2c_instance);
+#else
     VL53L1X(I2C * i2c_instance, Timer * timer_instance);
+#endif
 
     void setAddress(uint8_t new_addr);
     void setLocalAddress(uint8_t new_addr);
@@ -1311,7 +1316,9 @@ class VL53L1X
   private:
 #if VL53L1X_MBED_NON_BLOCKING > 0
     void i2c_event_cb(int event);
+    void i2c_timeout_cb();
     void transferInternal(int tx_len, int rx_len);
+    
 #endif /* VL53L1X_MBED_NON_BLOCKING */
 
     // The Arduino two-wire interface uses a 7-bit number for the address,
@@ -1373,12 +1380,21 @@ class VL53L1X
     DistanceMode distance_mode;
     uint8_t snd_buffer[MAX_SND_BUFFER_SIZE];
     uint8_t rec_buffer[MAX_REC_BUFFER_SIZE];
+    
+#if VL53L1X_MBED_NON_BLOCKING > 0
+    // Record the current time to check an upcoming timeout against
+    void startTimeout() { timeout_start_ms = Kernel::get_ms_count(); }
 
+    // Check if timeout is enabled (set to nonzero value) and has expired
+    bool checkTimeoutExpired() {return (io_timeout > 0) && ((uint16_t)(Kernel::get_ms_count() - timeout_start_ms) > io_timeout); }
+#else
     // Record the current time to check an upcoming timeout against
     void startTimeout() { timeout_start_ms = ms_timer->read_ms(); }
 
     // Check if timeout is enabled (set to nonzero value) and has expired
     bool checkTimeoutExpired() {return (io_timeout > 0) && ((uint16_t)(ms_timer->read_ms() - timeout_start_ms) > io_timeout); }
+
+#endif
 
     void setupManualCalibration();
     void readResults();
