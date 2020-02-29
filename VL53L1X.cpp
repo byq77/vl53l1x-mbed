@@ -15,12 +15,13 @@
 
 #define I2C_EVENT_TIMEOUT (1 << 5)
 #define I2C_EVENT_BUSSY 0xff
-static Timeout timeout;
+// static Timeout timeout;
 
 // Constructors ////////////////////////////////////////////////////////////////
 #if VL53L1X_MBED_NON_BLOCKING > 0
-VL53L1X::VL53L1X(I2C * i2c_instance)
+VL53L1X::VL53L1X(I2C * i2c_instance, Timeout * timeout_ptr)
   : i2c(i2c_instance)
+  , timeout(timeout_ptr)
   , address(AddressDefault<<1)
   , io_timeout(0) // no timeout
   , did_timeout(false)
@@ -224,7 +225,7 @@ void VL53L1X::transferInternal(int tx_len, int rx_len)
         return;
     }
 
-    timeout.attach_us(callback(this, &VL53L1X::i2c_timeout_cb), TIMEOUT_NON_BLOCKING_BYTE * (tx_len + rx_len + 3));
+    timeout->attach_us(callback(this, &VL53L1X::i2c_timeout_cb), TIMEOUT_NON_BLOCKING_BYTE * (tx_len + rx_len + 3));
 
     while (i2c_event == I2C_EVENT_BUSSY){ThisThread::yield();}
 
@@ -233,7 +234,7 @@ void VL53L1X::transferInternal(int tx_len, int rx_len)
     // decode the event
     if (i2c_event == I2C_EVENT_TRANSFER_COMPLETE)
     {
-        timeout.detach();
+        timeout->detach();
         last_status = 0;
     }
     else if (i2c_event == I2C_EVENT_TIMEOUT)

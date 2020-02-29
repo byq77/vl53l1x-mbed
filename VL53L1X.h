@@ -1273,7 +1273,7 @@ class VL53L1X
     volatile int i2c_event;
 
 #if VL53L1X_MBED_NON_BLOCKING > 0
-    VL53L1X(I2C * i2c_instance);
+    VL53L1X(I2C * i2c_instance, Timeout * timeout_ptr);
 #else
     VL53L1X(I2C * i2c_instance, Timer * timer_instance);
 #endif
@@ -1358,7 +1358,6 @@ class VL53L1X
     };
 
     I2C * i2c;
-    Timer * ms_timer;
 
     // making this static would save RAM for multiple instances as long as there
     // aren't multiple sensors being read at the same time (e.g. on separate
@@ -1382,12 +1381,14 @@ class VL53L1X
     uint8_t rec_buffer[MAX_REC_BUFFER_SIZE];
     
 #if VL53L1X_MBED_NON_BLOCKING > 0
+    Timeout * timeout;
     // Record the current time to check an upcoming timeout against
     void startTimeout() { timeout_start_ms = Kernel::get_ms_count(); }
 
     // Check if timeout is enabled (set to nonzero value) and has expired
     bool checkTimeoutExpired() {return (io_timeout > 0) && ((uint16_t)(Kernel::get_ms_count() - timeout_start_ms) > io_timeout); }
 #else
+    Timer * ms_timer;
     // Record the current time to check an upcoming timeout against
     void startTimeout() { timeout_start_ms = ms_timer->read_ms(); }
 
